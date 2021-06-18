@@ -1,12 +1,15 @@
 #pragma once
 
+#ifdef _WIN32
+#include <Windows.h>
+#else
 #include <unistd.h>
-#include <sys/time.h>
+#endif
 #include <iostream>
 #include <sstream>
 #include <fstream>
 #include <iomanip>
-#if __GNUC__ >= 8
+#if defined(_WIN32) || (__GNUC__ >= 8)
 #include <filesystem>
 #else
 #include <experimental/filesystem>
@@ -19,10 +22,14 @@
 #include <cassert>
 #include <stdexcept>
 
-#ifdef win32
+#ifdef _WIN32
 #define E_PATH_SEPARATOR  '\\'
+#define E_MAYBE_UNSUED
+#define E_NODISCARD
 #else
 #define E_PATH_SEPARATOR  '/'
+#define E_MAYBE_UNSUED    [[maybe_unused]]
+#define E_NODISCARD       [[nodiscard]]
 #endif
 
 // log level
@@ -32,6 +39,16 @@
 #define E_ERROR  Simple::Logger::eError
 
 // std color
+#ifdef _WIN32
+#define E_STD_COLOR_BLACK   (0)
+#define E_STD_COLOR_RED     (FOREGROUND_RED)
+#define E_STD_COLOR_GREEN   (FOREGROUND_GREEN)
+#define E_STD_COLOR_YELLOW  (FOREGROUND_RED | FOREGROUND_GREEN)
+#define E_STD_COLOR_BLUE    (FOREGROUND_BLUE)
+#define E_STD_COLOR_PURPLE  (FOREGROUND_RED | FOREGROUND_BLUE)
+#define E_STD_COLOR_CYAN    (FOREGROUND_GREEN | FOREGROUND_BLUE)
+#define E_STD_COLOR_WHITE   (FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE)
+#else
 #define E_STD_COLOR_BLACK   "\033[30m"
 #define E_STD_COLOR_RED     "\033[31m"
 #define E_STD_COLOR_GREEN   "\033[32m"
@@ -40,6 +57,7 @@
 #define E_STD_COLOR_PURPLE  "\033[35m"
 #define E_STD_COLOR_CYAN    "\033[36m"
 #define E_STD_COLOR_WHITE   "\033[37m"
+#endif
 
 // source code position
 #define E_LOG_POS  __FILE__, __LINE__, __FUNCTION__
@@ -84,7 +102,11 @@ char
  * @brief
  * @note singleton class, keep singleton object during whole progress living time
  */
+#ifdef _WIN32
+class Logger final
+#else
 class __attribute__((visibility("default"), aligned(8))) Logger final
+#endif
 {
 private:
 	using Mutex = std::mutex;
@@ -118,7 +140,7 @@ public:
 	noexcept
 	{
 		StopFileLog();
-		delete[] m_strColor;
+		delete[] m_stdColor;
 		delete[] m_strLevel;
 	}
 
@@ -127,11 +149,17 @@ public:
 	Logger &
 	operator=(const Logger &) = delete;
 
-	[[maybe_unused]]
+	E_MAYBE_UNSUED
 	void
+#ifdef _WIN32
+	ConfigStd(unsigned int _recordLevel = E_INFO, bool _useColor = true,
+			  const WORD(&_color)[Logger::eCnt] =
+				  {E_STD_COLOR_WHITE, E_STD_COLOR_GREEN, E_STD_COLOR_YELLOW, E_STD_COLOR_RED})
+#else
 	ConfigStd(unsigned int _recordLevel = E_INFO, bool _useColor = true,
 			  char const *(&_color)[Logger::eCnt] = (char const *[Logger::eCnt])
 				  {E_STD_COLOR_WHITE, E_STD_COLOR_GREEN, E_STD_COLOR_YELLOW, E_STD_COLOR_RED})
+#endif
 	{
 		SafeLock _sl(m_mutex);
 		assert(!m_bLogStd); // should not call twice
@@ -144,15 +172,19 @@ public:
 		m_bColorStd = _useColor;
 		if (m_bColorStd)
 		{
-			m_strColor = new char const *[Logger::eCnt];
-			m_strColor[E_DEBUG] = (nullptr == _color[E_DEBUG]) ? E_STD_COLOR_WHITE : _color[E_DEBUG];
-			m_strColor[E_INFO] = (nullptr == _color[E_INFO]) ? E_STD_COLOR_GREEN : _color[E_INFO];
-			m_strColor[E_WARN] = (nullptr == _color[E_WARN]) ? E_STD_COLOR_YELLOW : _color[E_WARN];
-			m_strColor[E_ERROR] = (nullptr == _color[E_ERROR]) ? E_STD_COLOR_RED : _color[E_ERROR];
+#ifdef _WIN32
+			m_stdColor = new WORD[Logger::eCnt]{_color[E_DEBUG], _color[E_INFO], _color[E_WARN], _color[E_ERROR]};
+#else
+			m_stdColor = new char const *[Logger::eCnt];
+			m_stdColor[E_DEBUG] = (nullptr == _color[E_DEBUG]) ? E_STD_COLOR_WHITE : _color[E_DEBUG];
+			m_stdColor[E_INFO] = (nullptr == _color[E_INFO]) ? E_STD_COLOR_GREEN : _color[E_INFO];
+			m_stdColor[E_WARN] = (nullptr == _color[E_WARN]) ? E_STD_COLOR_YELLOW : _color[E_WARN];
+			m_stdColor[E_ERROR] = (nullptr == _color[E_ERROR]) ? E_STD_COLOR_RED : _color[E_ERROR];
+#endif
 		}
 	}
 
-	[[maybe_unused]]
+	E_MAYBE_UNSUED
 	void
 	ConfigFile(unsigned int _recordLevel = E_INFO, const std::string &_storeDirectory = Logger::s_kFileStorePathDefault,
 			   size_t _byteMax = Logger::s_kFileByteDefault, size_t _cntMax = Logger::s_kFileCntDefault)
@@ -186,7 +218,7 @@ public:
 		while (!m_bWriteThreadAlive && !m_bStop);
 	}
 
-	[[maybe_unused]] inline
+	E_MAYBE_UNSUED inline
 	void
 	ConfigAlwaysMarkSourceCodePosition()
 	{
@@ -196,7 +228,7 @@ public:
 	}
 
 	template<typename ... Tn>
-	[[maybe_unused]] inline
+	E_MAYBE_UNSUED inline
 	void
 	StdLogDiy(unsigned int _level, const Tn &... tn)
 	{
@@ -208,7 +240,7 @@ public:
 	}
 
 	template<typename ... Tn>
-	[[maybe_unused]] inline
+	E_MAYBE_UNSUED inline
 	void
 	StdLog(const char *__restrict _file, unsigned int _line, const char *__restrict _func,
 		   unsigned int _level, const char *__restrict _trace, const Tn &... _tn)
@@ -222,7 +254,7 @@ public:
 	}
 
 	template<typename ... Tn>
-	[[maybe_unused]] inline
+	E_MAYBE_UNSUED inline
 	void
 	StdLog(const char *__restrict _file, unsigned int _line, const char *__restrict _func,
 		   unsigned int _level, const std::string &_trace, const Tn &... _tn)
@@ -231,7 +263,7 @@ public:
 	}
 
 	template<typename ... Tn>
-	[[maybe_unused]] inline
+	E_MAYBE_UNSUED inline
 	void
 	FileLogDiy(unsigned int _level, const Tn &... tn)
 	{
@@ -254,7 +286,7 @@ public:
 	}
 
 	template<typename ... Tn>
-	[[maybe_unused]]
+	E_MAYBE_UNSUED
 	void
 	FileLog(const char *__restrict _file, unsigned int _line, const char *__restrict _func,
 			unsigned int _level, const char *__restrict _trace, const Tn &... _tn)
@@ -279,7 +311,7 @@ public:
 	}
 
 	template<typename ... Tn>
-	[[maybe_unused]] inline
+	E_MAYBE_UNSUED inline
 	void
 	FileLog(const char *__restrict _file, unsigned int _line, const char *__restrict _func,
 			unsigned int _level, const std::string &_trace, const Tn &... _tn)
@@ -287,11 +319,11 @@ public:
 		return FileLog(_file, _line, _func, _level, _trace.c_str(), _tn...);
 	}
 
-	[[nodiscard]] inline
+	E_NODISCARD inline
 	bool
 	NeedRecordStd(unsigned int _level) const { return m_bLogStd && (_level >= m_levelStd); }
 
-	[[nodiscard]] inline
+	E_NODISCARD inline
 	bool
 	NeedRecordFile(unsigned int _level) const { return m_bLogFile && m_bWriteThreadAlive && (_level >= m_levelFile); }
 
@@ -303,7 +335,7 @@ private:
 	Logger() :
 		m_strLevel(new (char const *[Logger::eCnt]){"Debug", "Info", "Warn", "Error"}),
 		m_bAlwaysMarkSourceCodePosition(false),
-		m_bLogStd(false), m_bColorStd(false), m_levelStd(E_INFO), m_strColor(nullptr),
+		m_bLogStd(false), m_bColorStd(false), m_levelStd(E_INFO), m_stdColor(nullptr),
 		m_bLogFile(false), m_bWriteThreadAlive(false), m_levelFile(E_INFO), m_writeErrorCnt(0),
 		m_byteMax(Logger::s_kFileByteDefault), m_cntMax(Logger::s_kFileCntDefault), m_bStop(false) {}
 
@@ -334,7 +366,7 @@ private:
 	 * @example 2021-01-25 15:30:00.789 [Error] it is an error information	[directories/source.cpp, 125, test_logger]
 	 */
 	template<typename ... Tn>
-	[[nodiscard]]
+	E_NODISCARD
 	std::string
 	M_Format(const char *__restrict _file, unsigned int _line, const char *__restrict _func,
 			 unsigned int _level, const char *__restrict _trace, const Tn &... tn)
@@ -365,14 +397,14 @@ private:
 		PrintStdLog(M_Format(_file, _line, _func, _level, "logger", tn...), _level);
 	}
 
-	[[nodiscard]] inline
+	E_NODISCARD inline
 	std::string
 	MakeLogFileName()
 	{
 		return Format(m_strDir, E_PATH_SEPARATOR, m_strName, '_', GetTimestampForLogFileName(), ".log");
 	}
 
-	[[maybe_unused]]
+	E_MAYBE_UNSUED
 	void
 	WriteThread()
 	{
@@ -429,7 +461,7 @@ private:
 		}
 	}
 
-	[[nodiscard]]
+	E_NODISCARD
 	bool
 	WriteFile(LogQueue &_logs, const std::string &_file, size_t &_byte)
 	{
@@ -489,7 +521,7 @@ private:
 		return true;
 	}
 
-	[[nodiscard]]
+	E_NODISCARD
 	bool
 	WriteLogs(LogQueue &_logs, std::string &_file, size_t &_byte)
 	{
@@ -545,18 +577,18 @@ private:
 			FileQueue _queue;
 			/// \warning the follow line runs error with gcc 4.8, so gcc 7.5 above was needed
 			std::regex reg{m_strName + R"+(_\d{8}_\d{6}_\d{3}\.log)+"};
-#if __GNUC__ >= 8
+#if defined(_WIN32) || (__GNUC__ >= 8)
 			for (const auto &item: std::filesystem::directory_iterator{m_strDir})
 #else
-				for (const auto &item: std::experimental::filesystem::directory_iterator{m_strDir})
+			for (const auto &item: std::experimental::filesystem::directory_iterator{m_strDir})
 #endif
 			{
 				auto _name = item.path().filename().string();
-#if __GNUC__ >= 8
+#if defined(_WIN32) || (__GNUC__ >= 8)
 				if (item.is_regular_file() && std::regex_match(_name, reg))
 #else
-					if ((std::experimental::filesystem::file_type::regular == item.symlink_status().type())
-						&& std::regex_match(_name, reg))
+				if ((std::experimental::filesystem::file_type::regular == item.symlink_status().type())
+					&& std::regex_match(_name, reg))
 #endif
 				{
 					_queue.emplace_back(_name);
@@ -608,16 +640,29 @@ private:
 	{
 		if (m_bColorStd)
 		{
-			std::cout << m_strColor[_level] << _log << "\033[0m" << '\n';
+#ifdef _WIN32
+			auto _h = GetStdHandle(STD_OUTPUT_HANDLE);
+			CONSOLE_SCREEN_BUFFER_INFO _old{};
+			GetConsoleScreenBufferInfo(_h, std::addressof(_old));
+			SetConsoleTextAttribute(_h, m_stdColor[_level]);
+			std::cout << _log << '\n';
+			SetConsoleTextAttribute(_h, _old.wAttributes);
+			OutputDebugStringA((_log + "\r\n").c_str());
+#else
+			std::cout << m_stdColor[_level] << _log << "\033[0m" << '\n';
+#endif
 		}
 		else
 		{
 			std::cout << _log << '\n';
+#ifdef _WIN32
+			OutputDebugStringA((_log + "\r\n").c_str());
+#endif
 		}
 	}
 
 	template<typename T=size_t>
-	[[nodiscard]]
+	E_NODISCARD
 	std::string
 	GetByteSizeString(T _byte, int _precision = 3)
 	{
@@ -654,43 +699,65 @@ private:
 		return Format(std::setprecision(_precision), _d, _p);
 	}
 
-	[[nodiscard]] static
+	E_NODISCARD static
 	char
 	(&GetTimestampForLogFileName())[32]
 	{
-		// note, this function would always be used with mutex, so the follow 3 arguments can be static
-		static struct timeval _tv{0, 0};
+		// note, this function would always be used with mutex, so the follow 4 arguments can be static
 		static struct tm _t{};
 		static char _timestamp[32] = {0};
-//		memset(_timestamp, '\0', E_ByteOf(_timestamp));
-		gettimeofday(&_tv, nullptr);
-		localtime_r(&(_tv.tv_sec), &_t);
+		static uint64_t _milliSeconds = 0;
+		static time_t _seconds = 0;
+
+		_milliSeconds = std::chrono::duration_cast<std::chrono::milliseconds>(
+			std::chrono::system_clock::now().time_since_epoch()).count();
+		_seconds = static_cast<time_t>(_milliSeconds / uint64_t{1000});
+#ifdef _WIN32
+		localtime_s(std::addressof(_t), std::addressof(_seconds));
+#else
+		localtime_r(std::addressof(_seconds), std::addressof(_t));
+#endif
+#ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
 		snprintf(_timestamp, E_ByteOf(_timestamp), "%04d%02d%02d_%02d%02d%02d_%03d",
 				 _t.tm_year + 1900, _t.tm_mon + 1, _t.tm_mday,
-				 _t.tm_hour, _t.tm_min, _t.tm_sec, static_cast<int>(_tv.tv_usec / 1000));
+				 _t.tm_hour, _t.tm_min, _t.tm_sec, static_cast<int>(_milliSeconds % uint64_t{1000}));
+#ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
 		return _timestamp;
 	}
 
-	[[nodiscard]] static
+	E_NODISCARD static
 	auto
 	GetTimestampForLogContent() -> char (&)[32]
 	{
-		// note, this function would always be used with mutex, so the follow 3 arguments can be static
-		static struct timeval tv{0, 0};
+		// note, this function would always be used with mutex, so the follow 4 arguments can be static
 		static struct tm _t{};
 		static char _timestamp[32] = {0};
-//		memset(_timestamp, '\0', E_ByteOf(_timestamp));
-		gettimeofday(&tv, nullptr);
-		localtime_r(&(tv.tv_sec), &_t);
+		static uint64_t _milliSeconds = 0;
+		static time_t _seconds = 0;
+
+		_milliSeconds = std::chrono::duration_cast<std::chrono::milliseconds>(
+			std::chrono::system_clock::now().time_since_epoch()).count();
+		_seconds = static_cast<time_t>(_milliSeconds / uint64_t{1000});
+#ifdef _WIN32
+		localtime_s(std::addressof(_t), std::addressof(_seconds));
+#else
+		localtime_r(std::addressof(_seconds), std::addressof(_t));
+#endif
+#ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
 		snprintf(_timestamp, E_ByteOf(_timestamp), "%04d-%02d-%02d %02d:%02d:%02d.%03d",
 				 _t.tm_year + 1900, _t.tm_mon + 1, _t.tm_mday,
-				 _t.tm_hour, _t.tm_min, _t.tm_sec, static_cast<int>(tv.tv_usec / 1000));
+				 _t.tm_hour, _t.tm_min, _t.tm_sec, static_cast<int>(_milliSeconds % uint64_t{1000}));
+#ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
 		return _timestamp;
 	}
 
@@ -712,25 +779,26 @@ private:
 	}
 
 	template<typename ...Args>
-	[[nodiscard]] inline
+	E_NODISCARD inline
 	std::string
 	Format(const Args &...args)
 	{
 		std::stringstream _ss;
-#if __cplusplus < 201703L
-		FormatHelper(_ss, args...);
-#else
+#if defined(_WIN32) || (__cplusplus >= 201703L) // __cplusplus is always 199711L in visual studio
 		(_ss << ... << args); // since C++17
+#else
+		FormatHelper(_ss, args...);
 #endif
 		return _ss.str();
 	}
 
-	[[nodiscard]] static inline
+	E_NODISCARD static inline
 	std::string
 	GetExeFullPath()
 	{
 		char _path[1024 + 8] = {0};
-#ifdef win32
+#ifdef _WIN32
+		auto _cnt = GetModuleFileNameA(nullptr, _path, 1024);
 		assert(_cnt > 3); // like c:\\aaa\\bbb\\ccc
 #else
 		auto _cnt = readlink("/proc/self/exe", _path, 1024);
@@ -742,7 +810,7 @@ private:
 	/***
 	 * @warning not include the last separator
 	 */
-	[[nodiscard]] static inline
+	E_NODISCARD static inline
 	std::string
 	GetExeDir()
 	{
@@ -752,7 +820,7 @@ private:
 		return (std::string::npos == _pos) ? "" : _path.substr(0, (1 > _pos) ? 1 : _pos);
 	}
 
-	[[nodiscard]] static inline
+	E_NODISCARD static inline
 	std::string
 	GetExeName()
 	{
@@ -775,7 +843,7 @@ private:
 
 		try
 		{
-#if __GNUC__ >= 8
+#if defined(_WIN32) || (__GNUC__ >= 8)
 			const auto _p = std::filesystem::absolute(std::filesystem::path{_dir});
 			if (std::filesystem::is_directory(_p))
 			{
@@ -818,7 +886,11 @@ private:
 	bool m_bLogStd;
 	bool m_bColorStd;
 	unsigned int m_levelStd;
-	char const **m_strColor;
+#ifdef _WIN32
+	const WORD *m_stdColor;
+#else
+	char const **m_stdColor;
+#endif
 
 	// file log
 	bool m_bLogFile;
