@@ -24,13 +24,12 @@
 
 #ifdef _WIN32
 #define E_PATH_SEPARATOR  '\\'
-#define E_MAYBE_UNSUED
-#define E_NODISCARD
 #else
 #define E_PATH_SEPARATOR  '/'
+#endif
+
 #define E_MAYBE_UNSUED    [[maybe_unused]]
 #define E_NODISCARD       [[nodiscard]]
-#endif
 
 // log level
 #define E_DEBUG  Simple::Logger::eDebug
