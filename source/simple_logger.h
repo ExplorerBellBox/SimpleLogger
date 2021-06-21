@@ -105,7 +105,7 @@ char
 #ifdef _MSC_VER
 class Logger final
 #else
-	class __attribute__((visibility("default"), aligned(8))) Logger final
+class __attribute__((visibility("default"), aligned(8))) Logger final
 #endif
 {
 private:
