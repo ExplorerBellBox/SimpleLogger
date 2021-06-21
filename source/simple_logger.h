@@ -9,7 +9,7 @@
 #include <sstream>
 #include <fstream>
 #include <iomanip>
-#if defined(_WIN32) || (__GNUC__ >= 8)
+#if defined(_MSC_VER) || (__GNUC__ >= 8)
 #include <filesystem>
 #else
 #include <experimental/filesystem>
@@ -102,10 +102,10 @@ char
  * @brief
  * @note singleton class, keep singleton object during whole progress living time
  */
-#ifdef _WIN32
+#ifdef _MSC_VER
 class Logger final
 #else
-class __attribute__((visibility("default"), aligned(8))) Logger final
+	class __attribute__((visibility("default"), aligned(8))) Logger final
 #endif
 {
 private:
@@ -577,14 +577,14 @@ private:
 			FileQueue _queue;
 			/// \warning the follow line runs error with gcc 4.8, so gcc 7.5 above was needed
 			std::regex reg{m_strName + R"+(_\d{8}_\d{6}_\d{3}\.log)+"};
-#if defined(_WIN32) || (__GNUC__ >= 8)
+#if defined(_MSC_VER) || (__GNUC__ >= 8)
 			for (const auto &item: std::filesystem::directory_iterator{m_strDir})
 #else
 			for (const auto &item: std::experimental::filesystem::directory_iterator{m_strDir})
 #endif
 			{
 				auto _name = item.path().filename().string();
-#if defined(_WIN32) || (__GNUC__ >= 8)
+#if defined(_MSC_VER) || (__GNUC__ >= 8)
 				if (item.is_regular_file() && std::regex_match(_name, reg))
 #else
 				if ((std::experimental::filesystem::file_type::regular == item.symlink_status().type())
@@ -784,7 +784,7 @@ private:
 	Format(const Args &...args)
 	{
 		std::stringstream _ss;
-#if defined(_WIN32) || (__cplusplus >= 201703L) // __cplusplus is always 199711L in visual studio
+#if defined(_MSC_VER) || (__cplusplus >= 201703L) // __cplusplus is always 199711L in visual studio
 		(_ss << ... << args); // since C++17
 #else
 		FormatHelper(_ss, args...);
@@ -843,7 +843,7 @@ private:
 
 		try
 		{
-#if defined(_WIN32) || (__GNUC__ >= 8)
+#if defined(_MSC_VER) || (__GNUC__ >= 8)
 			const auto _p = std::filesystem::absolute(std::filesystem::path{_dir});
 			if (std::filesystem::is_directory(_p))
 			{
