@@ -28,7 +28,7 @@
 #define E_PATH_SEPARATOR  '/'
 #endif
 
-#define E_MAYBE_UNSUED    [[maybe_unused]]
+#define E_MAYBE_UNUSED    [[maybe_unused]]
 #define E_NODISCARD       [[nodiscard]]
 
 // log level
@@ -148,7 +148,7 @@ public:
 	Logger &
 	operator=(const Logger &) = delete;
 
-	E_MAYBE_UNSUED
+	E_MAYBE_UNUSED
 	void
 #ifdef _WIN32
 	ConfigStd(unsigned int _recordLevel = E_INFO, bool _useColor = true,
@@ -183,7 +183,7 @@ public:
 		}
 	}
 
-	E_MAYBE_UNSUED
+	E_MAYBE_UNUSED
 	void
 	ConfigFile(unsigned int _recordLevel = E_INFO, const std::string &_storeDirectory = Logger::s_kFileStorePathDefault,
 			   size_t _byteMax = Logger::s_kFileByteDefault, size_t _cntMax = Logger::s_kFileCntDefault)
@@ -217,7 +217,7 @@ public:
 		while (!m_bWriteThreadAlive && !m_bStop);
 	}
 
-	E_MAYBE_UNSUED inline
+	E_MAYBE_UNUSED inline
 	void
 	ConfigAlwaysMarkSourceCodePosition()
 	{
@@ -227,7 +227,7 @@ public:
 	}
 
 	template<typename ... Tn>
-	E_MAYBE_UNSUED inline
+	E_MAYBE_UNUSED inline
 	void
 	StdLogDiy(unsigned int _level, const Tn &... tn)
 	{
@@ -239,7 +239,7 @@ public:
 	}
 
 	template<typename ... Tn>
-	E_MAYBE_UNSUED inline
+	E_MAYBE_UNUSED inline
 	void
 	StdLog(const char *__restrict _file, unsigned int _line, const char *__restrict _func,
 		   unsigned int _level, const char *__restrict _trace, const Tn &... _tn)
@@ -253,7 +253,7 @@ public:
 	}
 
 	template<typename ... Tn>
-	E_MAYBE_UNSUED inline
+	E_MAYBE_UNUSED inline
 	void
 	StdLog(const char *__restrict _file, unsigned int _line, const char *__restrict _func,
 		   unsigned int _level, const std::string &_trace, const Tn &... _tn)
@@ -262,7 +262,7 @@ public:
 	}
 
 	template<typename ... Tn>
-	E_MAYBE_UNSUED inline
+	E_MAYBE_UNUSED inline
 	void
 	FileLogDiy(unsigned int _level, const Tn &... tn)
 	{
@@ -285,7 +285,7 @@ public:
 	}
 
 	template<typename ... Tn>
-	E_MAYBE_UNSUED
+	E_MAYBE_UNUSED
 	void
 	FileLog(const char *__restrict _file, unsigned int _line, const char *__restrict _func,
 			unsigned int _level, const char *__restrict _trace, const Tn &... _tn)
@@ -310,7 +310,7 @@ public:
 	}
 
 	template<typename ... Tn>
-	E_MAYBE_UNSUED inline
+	E_MAYBE_UNUSED inline
 	void
 	FileLog(const char *__restrict _file, unsigned int _line, const char *__restrict _func,
 			unsigned int _level, const std::string &_trace, const Tn &... _tn)
@@ -403,7 +403,7 @@ private:
 		return Format(m_strDir, E_PATH_SEPARATOR, m_strName, '_', GetTimestampForLogFileName(), ".log");
 	}
 
-	E_MAYBE_UNSUED
+	E_MAYBE_UNUSED
 	void
 	WriteThread()
 	{
