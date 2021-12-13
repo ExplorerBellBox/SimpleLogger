@@ -113,7 +113,7 @@ char
 #ifdef _MSC_VER
 class Logger final
 #else
-	class __attribute__((visibility("default"), aligned(sizeof(void *)))) Logger final
+class __attribute__((visibility("default"), aligned(sizeof(void *)))) Logger final
 #endif
 {
 private:
@@ -590,7 +590,7 @@ private:
 #if defined(M_HAS_std_filesystem)
 				if (item.is_regular_file())
 #elif defined(M_HAS_std_experimental_filesystem)
-				if ((M_filesystem::file_type::regular == item.symlink_status().type()))
+					if ((M_filesystem::file_type::regular == item.symlink_status().type()))
 #endif
 				{
 					if (std::regex_match(_name, reg))
@@ -672,7 +672,7 @@ private:
 	GetByteSizeString(T _byte, int32_t _precision = 3)
 	{
 		assert(std::is_integral<T>::value);
-		const char *_p = nullptr;
+		const char *_p;
 		double _d = 1.0 * _byte;
 #define E_BYTE_SCALE  (1024.0)
 		if (_d < E_BYTE_SCALE)
