@@ -5,22 +5,31 @@
 #else
 #include <unistd.h>
 #endif
+#ifdef ANDROID
+#include <android/log.h>
+#else
 #include <iostream>
+#endif
 #include <sstream>
 #include <fstream>
 #include <iomanip>
-#if defined(_MSC_VER) || (__GNUC__ >= 8)
-#include <filesystem>
-#else
-#include <experimental/filesystem>
-#endif
+#include <cassert>
+#include <stdexcept>
 #include <regex>
 #include <list>
 #include <atomic>
 #include <thread>
 #include <condition_variable>
-#include <cassert>
-#include <stdexcept>
+
+#if ((defined(_MSC_VER) && (_MSC_VER > 1900)) || (defined(__GNUC__) && (__GNUC__ >= 8)))
+#include <filesystem>
+#define M_HAS_std_filesystem
+#define M_filesystem  std::filesystem
+#else
+#include <experimental/filesystem>
+#define M_HAS_std_experimental_filesystem
+#define M_filesystem  std::experimental::filesystem
+#endif
 
 #ifdef _WIN32
 #define E_PATH_SEPARATOR  '\\'
@@ -28,7 +37,7 @@
 #define E_PATH_SEPARATOR  '/'
 #endif
 
-#define E_MAYBE_UNSUED    [[maybe_unused]]
+#define E_MAYBE_UNUSED    [[maybe_unused]]
 #define E_NODISCARD       [[nodiscard]]
 
 // log level
@@ -80,22 +89,22 @@
 #define E_DiyWarn(...)        E_FileLogDiy(E_WARN, __VA_ARGS__)
 #define E_DiyError(...)       E_FileLogDiy(E_ERROR, __VA_ARGS__)
 
-// array helper
-#define E_CountOf(_array)  sizeof(*Simple::CountOfHelper(_array))
-#define E_ByteOf(_array)   sizeof(*Simple::ByteOfHelper(_array))
-
 namespace Simple
 {
 
-template<typename T, size_t cnt>
+template <typename T, size_t cnt>
 inline
 char
 (*CountOfHelper(T (&)[cnt]))[cnt];
 
-template<typename T, size_t cnt>
+template <typename T, size_t cnt>
 inline
 char
 (*ByteOfHelper(T (&)[cnt]))[sizeof(T) * cnt ];
+
+// array helper
+#define E_CountOf(_array)  sizeof(*Simple::CountOfHelper(_array))
+#define E_ByteOf(_array)   sizeof(*Simple::ByteOfHelper(_array))
 
 /**
  * @brief
@@ -104,7 +113,7 @@ char
 #ifdef _MSC_VER
 class Logger final
 #else
-class __attribute__((visibility("default"), aligned(8))) Logger final
+	class __attribute__((visibility("default"), aligned(sizeof(void *)))) Logger final
 #endif
 {
 private:
@@ -117,7 +126,7 @@ private:
 
 public:
 	// level
-	enum : unsigned int { eDebug, eInfo, eWarn, eError, eCnt };
+	enum : uint32_t { eDebug, eInfo, eWarn, eError, eCnt };
 
 	static constexpr auto s_kFileByteDefault = size_t{1024} * 1024 * 5;     // 5MB
 	static constexpr auto s_kFileByteAllowMax = size_t{1024} * 1024 * 1024; // 1GB
@@ -135,8 +144,7 @@ public:
 		return _inst;
 	}
 
-	~Logger()
-	noexcept
+	~Logger() noexcept
 	{
 		StopFileLog();
 		delete[] m_stdColor;
@@ -148,14 +156,14 @@ public:
 	Logger &
 	operator=(const Logger &) = delete;
 
-	E_MAYBE_UNSUED
+	E_MAYBE_UNUSED
 	void
 #ifdef _WIN32
-	ConfigStd(unsigned int _recordLevel = E_INFO, bool _useColor = true,
+	ConfigStd(uint32_t _recordLevel = E_INFO, bool _useColor = true,
 			  const WORD(&_color)[Logger::eCnt] =
 				  {E_STD_COLOR_WHITE, E_STD_COLOR_GREEN, E_STD_COLOR_YELLOW, E_STD_COLOR_RED})
 #else
-	ConfigStd(unsigned int _recordLevel = E_INFO, bool _useColor = true,
+	ConfigStd(uint32_t _recordLevel = E_INFO, bool _useColor = true,
 			  char const *(&_color)[Logger::eCnt] = (char const *[Logger::eCnt])
 				  {E_STD_COLOR_WHITE, E_STD_COLOR_GREEN, E_STD_COLOR_YELLOW, E_STD_COLOR_RED})
 #endif
@@ -183,9 +191,9 @@ public:
 		}
 	}
 
-	E_MAYBE_UNSUED
+	E_MAYBE_UNUSED
 	void
-	ConfigFile(unsigned int _recordLevel = E_INFO, const std::string &_storeDirectory = Logger::s_kFileStorePathDefault,
+	ConfigFile(uint32_t _recordLevel = E_INFO, const std::string &_storeDirectory = Logger::s_kFileStorePathDefault,
 			   size_t _byteMax = Logger::s_kFileByteDefault, size_t _cntMax = Logger::s_kFileCntDefault)
 	{
 		SafeLock _sl(m_mutex);
@@ -209,15 +217,13 @@ public:
 		m_bStop = false;
 		// start the write file thread
 		m_ptrWriteThread = std::make_shared<std::thread>(&Logger::WriteThread, this);
-		const auto _interval = std::chrono::milliseconds{16};
 		do
 		{
-			std::this_thread::sleep_for(_interval); // take a break, wait for thread start
-		}
-		while (!m_bWriteThreadAlive && !m_bStop);
+			std::this_thread::sleep_for(std::chrono::milliseconds{16}); // take a break, wait for thread start
+		} while (!m_bWriteThreadAlive && !m_bStop);
 	}
 
-	E_MAYBE_UNSUED inline
+	E_MAYBE_UNUSED inline
 	void
 	ConfigAlwaysMarkSourceCodePosition()
 	{
@@ -226,10 +232,10 @@ public:
 		m_bAlwaysMarkSourceCodePosition = true;
 	}
 
-	template<typename ... Tn>
-	E_MAYBE_UNSUED inline
+	template <typename ... Tn>
+	E_MAYBE_UNUSED inline
 	void
-	StdLogDiy(unsigned int _level, const Tn &... tn)
+	StdLogDiy(uint32_t _level, const Tn &... tn)
 	{
 		if (m_bLogStd)
 		{
@@ -238,11 +244,11 @@ public:
 		}
 	}
 
-	template<typename ... Tn>
-	E_MAYBE_UNSUED inline
+	template <typename ... Tn>
+	E_MAYBE_UNUSED inline
 	void
-	StdLog(const char *__restrict _file, unsigned int _line, const char *__restrict _func,
-		   unsigned int _level, const char *__restrict _trace, const Tn &... _tn)
+	StdLog(const char *__restrict _file, uint32_t _line, const char *__restrict _func,
+		   uint32_t _level, const char *__restrict _trace, const Tn &... _tn)
 	{
 		assert(_file && _func);
 		if (NeedRecordStd(_level))
@@ -252,19 +258,19 @@ public:
 		}
 	}
 
-	template<typename ... Tn>
-	E_MAYBE_UNSUED inline
+	template <typename ... Tn>
+	E_MAYBE_UNUSED inline
 	void
-	StdLog(const char *__restrict _file, unsigned int _line, const char *__restrict _func,
-		   unsigned int _level, const std::string &_trace, const Tn &... _tn)
+	StdLog(const char *__restrict _file, uint32_t _line, const char *__restrict _func,
+		   uint32_t _level, const std::string &_trace, const Tn &... _tn)
 	{
 		return StdLog(_file, _line, _func, _level, _trace.c_str(), _tn...);
 	}
 
-	template<typename ... Tn>
-	E_MAYBE_UNSUED inline
+	template <typename ... Tn>
+	E_MAYBE_UNUSED inline
 	void
-	FileLogDiy(unsigned int _level, const Tn &... tn)
+	FileLogDiy(uint32_t _level, const Tn &... tn)
 	{
 		if (m_bLogFile && m_bWriteThreadAlive)
 		{
@@ -284,11 +290,11 @@ public:
 		}
 	}
 
-	template<typename ... Tn>
-	E_MAYBE_UNSUED
+	template <typename ... Tn>
+	E_MAYBE_UNUSED
 	void
-	FileLog(const char *__restrict _file, unsigned int _line, const char *__restrict _func,
-			unsigned int _level, const char *__restrict _trace, const Tn &... _tn)
+	FileLog(const char *__restrict _file, uint32_t _line, const char *__restrict _func,
+			uint32_t _level, const char *__restrict _trace, const Tn &... _tn)
 	{
 		assert(_file && _func);
 		if (NeedRecordFile(_level))
@@ -309,29 +315,29 @@ public:
 		}
 	}
 
-	template<typename ... Tn>
-	E_MAYBE_UNSUED inline
+	template <typename ... Tn>
+	E_MAYBE_UNUSED inline
 	void
-	FileLog(const char *__restrict _file, unsigned int _line, const char *__restrict _func,
-			unsigned int _level, const std::string &_trace, const Tn &... _tn)
+	FileLog(const char *__restrict _file, uint32_t _line, const char *__restrict _func,
+			uint32_t _level, const std::string &_trace, const Tn &... _tn)
 	{
 		return FileLog(_file, _line, _func, _level, _trace.c_str(), _tn...);
 	}
 
 	E_NODISCARD inline
 	bool
-	NeedRecordStd(unsigned int _level) const { return m_bLogStd && (_level >= m_levelStd); }
+	NeedRecordStd(uint32_t _level) const { return m_bLogStd && (_level >= m_levelStd); }
 
 	E_NODISCARD inline
 	bool
-	NeedRecordFile(unsigned int _level) const { return m_bLogFile && m_bWriteThreadAlive && (_level >= m_levelFile); }
+	NeedRecordFile(uint32_t _level) const { return m_bLogFile && m_bWriteThreadAlive && (_level >= m_levelFile); }
 
 	[[maybe_unused, nodiscard]] inline
 	bool
-	NeedRecord(unsigned int _level) const { return NeedRecordStd(_level) || NeedRecordFile(_level); }
+	NeedRecord(uint32_t _level) const { return NeedRecordStd(_level) || NeedRecordFile(_level); }
 
 private:
-	Logger() :
+	Logger() noexcept:
 		m_strLevel(new (char const *[Logger::eCnt]){"Debug", "Info", "Warn", "Error"}),
 		m_bAlwaysMarkSourceCodePosition(false),
 		m_bLogStd(false), m_bColorStd(false), m_levelStd(E_INFO), m_stdColor(nullptr),
@@ -341,20 +347,22 @@ private:
 	void
 	StopFileLog()
 	{
-		if (m_ptrWriteThread)
+		ThreadPtr _t;
 		{
-			{
-				SafeLock _sl(m_mutex);
-				m_bLogFile = false;
-				m_bStop = true;
-				m_cond.notify_all();
-			}
+			SafeLock _sl(m_mutex);
+			m_bLogFile = false;
+			m_bStop = true;
 			m_cond.notify_all();
-			if (m_ptrWriteThread->joinable())
+			_t.swap(m_ptrWriteThread);
+		}
+
+		if (_t)
+		{
+			m_cond.notify_all();
+			if (_t->joinable())
 			{
-				m_ptrWriteThread->join();
+				_t->join();
 			}
-			m_ptrWriteThread.reset();
 		}
 	}
 
@@ -364,11 +372,11 @@ private:
 	 * @example 2021-01-25 15:30:00.567 [Warn] it is a warning information	[directories/source.cpp, 125, test_logger]
 	 * @example 2021-01-25 15:30:00.789 [Error] it is an error information	[directories/source.cpp, 125, test_logger]
 	 */
-	template<typename ... Tn>
+	template <typename ... Tn>
 	E_NODISCARD
 	std::string
-	M_Format(const char *__restrict _file, unsigned int _line, const char *__restrict _func,
-			 unsigned int _level, const char *__restrict _trace, const Tn &... tn)
+	M_Format(const char *__restrict _file, uint32_t _line, const char *__restrict _func,
+			 uint32_t _level, const char *__restrict _trace, const Tn &... tn)
 	{
 		assert(_level < Logger::eCnt);
 		std::stringstream _ss;
@@ -387,11 +395,11 @@ private:
 		return _ss.str();
 	}
 
-	template<typename ... Tn>
+	template <typename ... Tn>
 	inline
 	void
-	M_StdLog(const char *__restrict _file, unsigned int _line, const char *__restrict _func,
-			 unsigned int _level, const Tn &... tn)
+	M_StdLog(const char *__restrict _file, uint32_t _line, const char *__restrict _func,
+			 uint32_t _level, const Tn &... tn)
 	{
 		PrintStdLog(M_Format(_file, _line, _func, _level, "logger", tn...), _level);
 	}
@@ -403,7 +411,7 @@ private:
 		return Format(m_strDir, E_PATH_SEPARATOR, m_strName, '_', GetTimestampForLogFileName(), ".log");
 	}
 
-	E_MAYBE_UNSUED
+	E_MAYBE_UNUSED
 	void
 	WriteThread()
 	{
@@ -576,21 +584,19 @@ private:
 			FileQueue _queue;
 			/// \warning the follow line runs error with gcc 4.8, so gcc 7.5 above was needed
 			std::regex reg{m_strName + R"+(_\d{8}_\d{6}_\d{3}\.log)+"};
-#if defined(_MSC_VER) || (__GNUC__ >= 8)
-			for (const auto &item: std::filesystem::directory_iterator{m_strDir})
-#else
-			for (const auto &item: std::experimental::filesystem::directory_iterator{m_strDir})
-#endif
+			for (const auto &item: M_filesystem::directory_iterator{m_strDir})
 			{
 				auto _name = item.path().filename().string();
-#if defined(_MSC_VER) || (__GNUC__ >= 8)
-				if (item.is_regular_file() && std::regex_match(_name, reg))
-#else
-				if ((std::experimental::filesystem::file_type::regular == item.symlink_status().type())
-					&& std::regex_match(_name, reg))
+#if defined(M_HAS_std_filesystem)
+				if (item.is_regular_file())
+#elif defined(M_HAS_std_experimental_filesystem)
+				if ((M_filesystem::file_type::regular == item.symlink_status().type()))
 #endif
 				{
-					_queue.emplace_back(_name);
+					if (std::regex_match(_name, reg))
+					{
+						_queue.emplace_back(_name);
+					}
 				}
 			}
 
@@ -635,7 +641,7 @@ private:
 
 	inline
 	void
-	PrintStdLog(const std::string &_log, unsigned int _level)
+	PrintStdLog(const std::string &_log, uint32_t _level)
 	{
 		if (m_bColorStd)
 		{
@@ -660,10 +666,10 @@ private:
 		}
 	}
 
-	template<typename T=size_t>
+	template <typename T=size_t>
 	E_NODISCARD
 	std::string
-	GetByteSizeString(T _byte, int _precision = 3)
+	GetByteSizeString(T _byte, int32_t _precision = 3)
 	{
 		assert(std::is_integral<T>::value);
 		const char *_p = nullptr;
@@ -722,7 +728,7 @@ private:
 #endif
 		snprintf(_timestamp, E_ByteOf(_timestamp), "%04d%02d%02d_%02d%02d%02d_%03d",
 				 _t.tm_year + 1900, _t.tm_mon + 1, _t.tm_mday,
-				 _t.tm_hour, _t.tm_min, _t.tm_sec, static_cast<int>(_milliSeconds % uint64_t{1000}));
+				 _t.tm_hour, _t.tm_min, _t.tm_sec, static_cast<int32_t>(_milliSeconds % uint64_t{1000}));
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
@@ -753,14 +759,14 @@ private:
 #endif
 		snprintf(_timestamp, E_ByteOf(_timestamp), "%04d-%02d-%02d %02d:%02d:%02d.%03d",
 				 _t.tm_year + 1900, _t.tm_mon + 1, _t.tm_mday,
-				 _t.tm_hour, _t.tm_min, _t.tm_sec, static_cast<int>(_milliSeconds % uint64_t{1000}));
+				 _t.tm_hour, _t.tm_min, _t.tm_sec, static_cast<int32_t>(_milliSeconds % uint64_t{1000}));
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
 		return _timestamp;
 	}
 
-	template<typename T>
+	template <typename T>
 	inline
 	void
 	FormatHelper(std::stringstream &_ss, const T &t)
@@ -768,7 +774,7 @@ private:
 		_ss << t;
 	}
 
-	template<typename T1, typename ...Tn>
+	template <typename T1, typename ...Tn>
 	inline
 	void
 	FormatHelper(std::stringstream &_ss, const T1 &t1, const Tn &...tn)
@@ -777,13 +783,13 @@ private:
 		FormatHelper(_ss, tn...);
 	}
 
-	template<typename ...Args>
+	template <typename ...Args>
 	E_NODISCARD inline
 	std::string
 	Format(const Args &...args)
 	{
 		std::stringstream _ss;
-#if defined(_MSC_VER) || (__cplusplus >= 201703L) // __cplusplus is always 199711L in visual studio
+#if (defined(_MSC_VER) && (_MSC_VER > 1900)) || (__cplusplus >= 201703L) // __cplusplus is always 199711L in visual studio
 		(_ss << ... << args); // since C++17
 #else
 		FormatHelper(_ss, args...);
@@ -842,33 +848,18 @@ private:
 
 		try
 		{
-#if defined(_MSC_VER) || (__GNUC__ >= 8)
-			const auto _p = std::filesystem::absolute(std::filesystem::path{_dir});
-			if (std::filesystem::is_directory(_p))
+			const auto _p = M_filesystem::absolute(M_filesystem::path{_dir});
+			if (M_filesystem::is_directory(_p))
 			{
 				return _p.string();
 			}
 			else if (bCreateIfNotExist)
 			{
-				if (std::filesystem::create_directories(_p))
+				if (M_filesystem::create_directories(_p))
 				{
 					return _p.string();
 				}
 			}
-#else
-			const auto _p = std::experimental::filesystem::absolute(std::experimental::filesystem::path{_dir});
-			if (std::experimental::filesystem::is_directory(_p))
-			{
-				return _p.string();
-			}
-			else if (bCreateIfNotExist)
-			{
-				if (std::experimental::filesystem::create_directories(_p))
-				{
-					return _p.string();
-				}
-			}
-#endif
 		}
 		catch (...)
 		{
@@ -884,7 +875,7 @@ private:
 	// standard log
 	bool m_bLogStd;
 	bool m_bColorStd;
-	unsigned int m_levelStd;
+	uint32_t m_levelStd;
 #ifdef _WIN32
 	const WORD *m_stdColor;
 #else
@@ -894,8 +885,8 @@ private:
 	// file log
 	bool m_bLogFile;
 	bool m_bWriteThreadAlive;
-	unsigned int m_levelFile;
-	unsigned int m_writeErrorCnt;
+	uint32_t m_levelFile;
+	uint32_t m_writeErrorCnt;
 	size_t m_byteMax;           // log file max byte size
 	size_t m_cntMax;            // log file max count
 	std::atomic_bool m_bStop;
